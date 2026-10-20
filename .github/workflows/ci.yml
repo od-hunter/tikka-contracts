@@ -148,6 +148,8 @@ jobs:
         run: make oracle-fmt-check
       - name: Lint (ESLint)
         run: make oracle-lint
+      - name: Reject test artifacts in the oracle build
+        run: make oracle-dist-check
       - name: TypeScript compile check
         run: make oracle-typecheck
       - name: Run tests

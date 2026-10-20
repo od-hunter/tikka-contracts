@@ -3,6 +3,7 @@
         ruff-lint ruff-fmt-check python-tests supply-chain \
         fuzz clean deploy-testnet deploy-mainnet verify reproducible \
         oracle-build oracle-test oracle-test-ci oracle-lint oracle-fmt-check oracle-typecheck \
+        oracle-dist-check \
         all ci
 
 # ---------------------------------------------------------------------------
@@ -92,7 +93,29 @@ all: lint test build
 #   - Coverage ratchet              (needs cargo-llvm-cov; run separately)
 #   - Upload artifact steps
 # ---------------------------------------------------------------------------
+# Oracle targets used by .github/workflows/ci.yml
+# ---------------------------------------------------------------------------
+
+oracle-typecheck:
+	cd oracle && npm run typecheck
+
+# Production tsc must not emit the test suite or its fixtures (issue #1272).
+# tsc still writes dist when it reports existing type errors, so the guard
+# checks the emitted tree rather than treating those errors as a failure.
+oracle-dist-check:
+	rm -rf oracle/dist
+	cd oracle && npm run build || true
+	@if [ ! -d oracle/dist ] || [ -z "$$(find oracle/dist -type f -name '*.js')" ]; then \
+		echo "oracle build did not produce dist/"; \
+		exit 1; \
+	fi
+	@if find oracle/dist -type f \( -name '*.test.js' -o -name '*.test.js.map' -o -name '*.test.d.ts' -o -name '*.test-utils.js' -o -name '*.test-utils.js.map' -o -name '*.test-utils.d.ts' -o -path '*/__fixtures__/*' \) | grep -q .; then \
+		echo "dist contains test or fixture files"; \
+		find oracle/dist -type f \( -name '*.test.js' -o -name '*.test.js.map' -o -name '*.test.d.ts' -o -name '*.test-utils.js' -o -name '*.test-utils.js.map' -o -name '*.test-utils.d.ts' -o -path '*/__fixtures__/*' \); \
+		exit 1; \
+	fi
+
 ci: check fmt-check orphan-check build wasm-size docs-errors docs-events \
     clippy test test-doc shellcheck \
     ruff-lint ruff-fmt-check python-tests supply-chain \
-    oracle-fmt-check oracle-lint oracle-typecheck oracle-test-ci
+    oracle-fmt-check oracle-lint oracle-dist-check oracle-typecheck oracle-test-ci

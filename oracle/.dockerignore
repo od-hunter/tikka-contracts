@@ -5,6 +5,9 @@ coverage
 *.log
 tests
 **/__tests__
+**/*.test.ts
+**/*.test-utils.ts
+**/__fixtures__
 .git
 .gitignore
 .DS_Store
