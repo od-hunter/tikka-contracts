@@ -1074,9 +1074,10 @@ if config.randomness_source == RandomnessSource::External {
     /// from being archived by Soroban's TTL expiry.
     ///
     /// Bumps the instance entry plus a paginated window of persistent ticket
-    /// entries (`limit` entries starting at 1-indexed `start_ticket_id`),
-    /// so operators can keep a long-running raffle alive without an O(n)
-    /// call (#1010). Returns the number of ticket entries refreshed.
+    /// entries (`limit` entries starting at 1-indexed `start_ticket_id`) and
+    /// the matching `CommitEntry` when one exists, so operators can keep a
+    /// long-running raffle alive without an O(n) call (#1010). Returns the
+    /// number of ticket entries refreshed.
     /// See `docs/STORAGE.md` § "Raffle TTL Management" for the retention
     /// window each bump provides.
     pub fn extend_ttl(env: Env, start_ticket_id: u32, limit: u32) -> Result<u32, Error> {

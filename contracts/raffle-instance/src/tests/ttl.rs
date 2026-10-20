@@ -137,8 +137,9 @@ mod tests {
                 env.storage().persistent().set(&DataKey::Ticket(i), &true);
             }
         });
-        let before =
-            env.as_contract(&contract, || env.storage().persistent().get_ttl(&DataKey::Ticket(1)));
+        let before = env.as_contract(&contract, || {
+            env.storage().persistent().get_ttl(&DataKey::Ticket(1))
+        });
 
         // Simulate a long-running raffle: advance well past the ~3-month
         // persistent threshold (1,555,200 ledgers).
@@ -149,11 +150,48 @@ mod tests {
         let refreshed = env.as_contract(&contract, || extend_ticket_ttls(&env, 1, 10));
         assert_eq!(refreshed, 3);
 
-        let after =
-            env.as_contract(&contract, || env.storage().persistent().get_ttl(&DataKey::Ticket(1)));
+        let after = env.as_contract(&contract, || {
+            env.storage().persistent().get_ttl(&DataKey::Ticket(1))
+        });
         assert!(
             after >= before,
             "Ticket TTL should survive ledger advance after paginated bump"
+        );
+    }
+
+    /// Commit entries share a ticket id and must be refreshed by the same
+    /// rolling window. A ticket with no commit must not cause the walk to stop.
+    #[test]
+    fn test_extend_ticket_ttls_refreshes_commit_entries() {
+        let env = Env::default();
+        env.mock_all_auths();
+        env.cost_estimate().budget().reset_unlimited();
+        let contract = contract(&env);
+
+        env.as_contract(&contract, || {
+            env.storage().persistent().set(&DataKey::Ticket(1), &true);
+            env.storage()
+                .persistent()
+                .set(&DataKey::CommitEntry(1), &true);
+            env.storage().persistent().set(&DataKey::Ticket(2), &true);
+        });
+        let before = env.as_contract(&contract, || {
+            env.storage().persistent().get_ttl(&DataKey::CommitEntry(1))
+        });
+
+        env.ledger().with_mut(|l| {
+            l.sequence_number += 1_400_000;
+        });
+
+        let refreshed = env.as_contract(&contract, || extend_ticket_ttls(&env, 1, 2));
+        assert_eq!(refreshed, 2);
+
+        let after = env.as_contract(&contract, || {
+            env.storage().persistent().get_ttl(&DataKey::CommitEntry(1))
+        });
+        assert!(
+            after > before,
+            "CommitEntry TTL should be refreshed alongside its ticket"
         );
     }
 }

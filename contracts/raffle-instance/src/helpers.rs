@@ -98,14 +98,16 @@ fn resolve_unique_winner(
 /// [`extend_ticket_ttls`] entrypoint covers the remainder for operators.
 pub(crate) const TTL_BUMP_WINDOW: u32 = 100;
 
-/// Extend instance TTL and keep persistent ticket records alive.
+/// Extend instance TTL and keep persistent ticket and commit records alive.
 ///
 /// Every parameter is used: `total_tickets` bounds the rolling window so a
 /// long-running raffle (in particular a `no_deadline` one) keeps its
-/// `DataKey::Ticket(id)` entries alive alongside the instance entry.
-/// Without this, the instance entry survives while ticket entries expire
-/// underneath it, so `get_ticket_owner` returns `None` and finalization
-/// fails with `TicketNotFound` against escrowed funds.
+/// `DataKey::Ticket(id)` and `DataKey::CommitEntry(id)` entries alive
+/// alongside the instance entry. Without this, the instance entry survives
+/// while ticket entries expire underneath it, so `get_ticket_owner` returns
+/// `None` and finalization fails with `TicketNotFound` against escrowed
+/// funds. A commit that expires before `finalize_raffle` is skipped, so that
+/// participant's entropy is dropped from the draw.
 ///
 /// Cost is O(`TTL_BUMP_WINDOW`), independent of `total_tickets`.
 pub(crate) fn bump_raffle_ttl(env: &Env, total_tickets: u32) {
@@ -173,11 +175,12 @@ pub(crate) fn bump_touched_tickets(
 }
 
 /// Paginated operator helper: refresh `limit` ticket entries starting at
-/// 1-indexed `start_ticket_id`.
+/// 1-indexed `start_ticket_id`, and the matching `CommitEntry` when one
+/// exists.
 ///
 /// Exposed to operators through the `extend_ttl` entrypoint so anyone can
-/// keep a long-running raffle's ticket records alive without an O(n) call.
-/// Returns the number of entries refreshed.
+/// keep a long-running raffle's ticket and commit records alive without an
+/// O(n) call. Returns the number of ticket entries refreshed.
 pub(crate) fn extend_ticket_ttls(env: &Env, start_ticket_id: u32, limit: u32) -> u32 {
     let mut refreshed = 0u32;
     for offset in 0..limit {
@@ -194,6 +197,17 @@ pub(crate) fn extend_ticket_ttls(env: &Env, start_ticket_id: u32, limit: u32) ->
                 raffle_shared::constants::PERSISTENT_TTL_THRESHOLD_LEDGERS,
                 raffle_shared::constants::PERSISTENT_TTL_BUMP_LEDGERS,
             );
+            if env
+                .storage()
+                .persistent()
+                .has(&DataKey::CommitEntry(ticket_id))
+            {
+                env.storage().persistent().extend_ttl(
+                    &DataKey::CommitEntry(ticket_id),
+                    raffle_shared::constants::PERSISTENT_TTL_THRESHOLD_LEDGERS,
+                    raffle_shared::constants::PERSISTENT_TTL_BUMP_LEDGERS,
+                );
+            }
             refreshed = refreshed.saturating_add(1);
         }
     }

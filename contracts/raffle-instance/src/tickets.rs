@@ -708,9 +708,11 @@ pub(crate) fn submit_commit(env: Env, ticket_id: u32, hash: BytesN<32>) -> Resul
         },
     );
 
-    // Keep the commit live through a long Active period (adjust if the repo
-    // already defines shared TTL constants — prefer those).
-    env.storage().persistent().extend_ttl(&key, 100, 535_680);
+    env.storage().persistent().extend_ttl(
+        &key,
+        raffle_shared::constants::PERSISTENT_TTL_THRESHOLD_LEDGERS,
+        raffle_shared::constants::PERSISTENT_TTL_BUMP_LEDGERS,
+    );
 
     Ok(())
 }
