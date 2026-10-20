@@ -43,8 +43,16 @@ docker-compose ps
 # View logs
 docker-compose logs -f oracle
 
-# Check health endpoint (returns {"status":"ok"})
-curl http://localhost:9090/health
+# Probe /health from the host. Compose publishes HEALTH_PORT (default 9090)
+# on 127.0.0.1 only. A healthy oracle returns HTTP 200 and {"status":"ok"}.
+# A non-2xx response is unhealthy.
+curl -fsS "http://127.0.0.1:${HEALTH_PORT:-9090}/health"
+
+# docker-compose ps should show the oracle as healthy. The image healthcheck
+# does not use curl — node:26-slim does not include it. It runs node against
+# http://127.0.0.1:$HEALTH_PORT/health inside the container and fails unless
+# the status is 2xx. Repeat that check by hand with:
+#   docker-compose exec oracle node -e "const http=require('http');const port=process.env.HEALTH_PORT||'9090';http.get('http://127.0.0.1:'+port+'/health',res=>{res.resume();process.exit(res.statusCode>=200&&res.statusCode<300?0:1)}).on('error',()=>process.exit(1))"
 
 # View metrics (Prometheus text format)
 curl http://localhost:9090/metrics
@@ -107,8 +115,11 @@ to `oracle:9091` on the Compose network. Configuration rejects a non-loopback
 metrics bind without a token.
 
 The health endpoint is published only on host loopback as
-`http://localhost:9090`; Docker's health check continues to call it inside the
-container.
+`http://127.0.0.1:${HEALTH_PORT:-9090}`. Compose does not override the image
+healthcheck. That check runs inside the container with Node, reads
+`HEALTH_PORT` (default `9090`), and exits non-zero on a connection error or
+any status outside 2xx. `docker-compose ps` reports the service healthy only
+after that probe succeeds.
 
 ## Metrics Reference
 
@@ -293,7 +304,7 @@ Optional configuration:
 - `DATA_DIR`: Directory for persistent state files (`checkpoint.json` and `dedup.json`). Resolved to an absolute path at startup. In Docker this is the `oracle_data` named volume mounted at `/app/data`. **If this directory is not persisted across restarts the oracle resumes from the current ledger and will miss any `RandomnessRequested` events that arrived while it was down.** (default: `./data`)
 - `LOG_LEVEL`: Logging verbosity (`debug`, `info`, `warn`, `error`; default: `info`)
 - `POLL_INTERVAL_MS`: Event polling interval in milliseconds (default: 5000)
-- `HEALTH_PORT`: Port for `/health` and `/metrics` (default: 9090)
+- `HEALTH_PORT`: Port for `/health` (default: 9090). The image healthcheck reads this value and fails unless the response status is 2xx.
 - `ALERT_WEBHOOK_URL`: Webhook URL for operational alerts
 - `ALERT_FAILURE_THRESHOLD`: Consecutive failures before alerting (default: 3)
 - `ALERT_RATE_LIMIT_MS`: Minimum time between alerts (default: 60000)

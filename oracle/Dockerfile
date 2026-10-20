@@ -16,6 +16,6 @@ RUN mkdir -p /app/data && chown node:node /app/data
 USER node
 EXPOSE 9090
 HEALTHCHECK --interval=30s --timeout=5s --start-period=5s --retries=3 \
-	CMD node -e "require('http').get('http://127.0.0.1:9090/health', res => process.exit(0)).on('error', () => process.exit(1))"
+	CMD node -e "const http=require('http');const port=process.env.HEALTH_PORT||'9090';http.get('http://127.0.0.1:'+port+'/health',res=>{res.resume();process.exit(res.statusCode>=200&&res.statusCode<300?0:1)}).on('error',()=>process.exit(1))"
 ENTRYPOINT ["/usr/bin/tini", "--"]
 CMD ["node", "dist/index.js"]
