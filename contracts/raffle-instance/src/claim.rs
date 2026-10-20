@@ -9,6 +9,29 @@ use crate::{
     RaffleStatus, Winner,
 };
 
+/// Pay one finalized prize tier to `winner`.
+///
+/// # Errors
+///
+/// - [`Error::Reentrancy`] — a guarded call is already in progress.
+/// - [`Error::NotInitialized`] — raffle state is missing.
+/// - [`Error::InvalidStatus`] — raffle is not `Finalized`.
+/// - [`Error::ClaimTooEarly`] — `claim_lockup_seconds` has not elapsed since
+///   finalization.
+/// - [`Error::InvalidParameters`] — `tier_index` is outside `winners`, or the
+///   prize schedule is empty.
+/// - [`Error::InvalidIndex`] — the tier cannot be read from `winners` or
+///   `prizes`.
+/// - [`Error::NotWinner`] — `winner` is not the address recorded for this tier.
+/// - [`Error::PrizeAlreadyClaimed`] — this tier was already claimed.
+/// - [`Error::PrizeSwept`] — this tier was swept to the treasury.
+/// - [`Error::ZeroPrize`] — the tier's prize amount is zero.
+/// - [`Error::ArithmeticOverflow`] — a fee or prize split overflowed.
+/// - [`Error::InsufficientFunds`] — the contract balance cannot cover the
+///   gross prize.
+/// - [`Error::InvalidStateTransition`] — moving to `Claimed` is not allowed
+///   from the current status.
+/// - [`Error::TokenTransferFailed`] — the prize token transfer failed.
 pub(crate) fn claim_prize(env: Env, winner: Address, tier_index: u32) -> Result<i128, Error> {
     winner.require_auth();
     let _guard = Guard::new(&env)?;

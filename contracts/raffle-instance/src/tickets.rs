@@ -646,8 +646,8 @@ pub(crate) fn buy_tickets_for(env: Env, buyer: Address, recipient: Address, quan
 ///
 /// ## Timing
 ///
-/// Commits may be submitted while the raffle is `Active` **or** `Drawing`.
-/// Submitting after `finalize_raffle` has already been called is rejected with
+/// Commits may be submitted only while the raffle is `Active`. Once the
+/// raffle leaves `Active` — including `Drawing` — the call is rejected with
 /// [`Error::InvalidStatus`].
 ///
 /// # Auth
@@ -665,9 +665,15 @@ pub(crate) fn buy_tickets_for(env: Env, buyer: Address, recipient: Address, quan
 ///
 /// # Errors
 ///
+/// - [`Error::NotInitialized`] — raffle state is missing, or the factory
+///   address required for the global pause check is missing.
 /// - [`Error::InvalidParameters`] — randomness source is not `CommitReveal`.
-/// - [`Error::InvalidStatus`] — raffle is not `Active` or `Drawing`.
+/// - [`Error::InvalidStatus`] — raffle is not `Active`.
+/// - [`Error::ContractPaused`] — the instance is paused, or the factory
+///   global pause is engaged.
 /// - [`Error::TicketNotFound`] — no ticket with `ticket_id` exists in storage.
+/// - [`Error::CommitAlreadySubmitted`] — a commit is already stored for
+///   `ticket_id`.
 ///
 /// See also: [`docs/RANDOMNESS.md`](../../../docs/RANDOMNESS.md) —
 /// Commit-Reveal mode,
